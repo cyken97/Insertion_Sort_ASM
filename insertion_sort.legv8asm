@@ -1,0 +1,190 @@
+// Yew Ken Chai (cyken)
+// Create a 8-byte array of 20 unique integers in reversed order and sorts it using insertion sort
+
+main:
+	ADDI X10, XZR, #20		// X10: element count
+	LSL X9, X10, #3
+	SUB SP, SP, X9			// reserve stack memory for array
+	ADD X9, SP, XZR			// X9: array base address
+	
+	ADD X0, X9, XZR			// call fill
+	ADD X1, X10, XZR		// push regs
+	SUBI SP, SP, #16
+	STUR X9, [SP, #0]
+	STUR X10, [SP, #8]
+	BL fill
+	LDUR X9, [SP, #0] 		// restore regs and stack
+	LDUR X10, [SP, #8]
+	ADDI SP, SP, #16
+
+	ADD X0, X9, XZR			// call insertion_sort
+	ADD X1, X10, XZR
+	SUBI SP, SP, #16
+	STUR X9, [SP, #0]
+	STUR X10, [SP, #8]
+	BL insertion_sort 
+	LDUR X9, [SP, #0]
+	LDUR X10, [SP, #8]
+	ADDI SP, SP, #16
+
+	ADD X0, X9, XZR			// print sorted array
+	ADD X1, X10, XZR
+	BL print_arr
+
+	B exit					// exit
+
+// X0 addr; X1 length
+fill:	
+	ADD X9, X1, XZR			// X9 = value
+	ADD X10, X0, XZR 		// X10 = array pointer
+
+fill_loop:
+	CBZ X9, end_fill		// break when X9 == 0
+	STUR X9, [X10, #0]
+	SUBI X9, X9, #1
+	ADDI X10, X10, #8		// inc array pointer
+	B fill_loop
+
+end_fill:
+	BR LR
+
+
+// X0 addr; X1 length
+insertion_sort:
+	SUBI SP, SP, #8			// push return address
+	STUR LR, [SP, #0]
+	ADD X19, XZR, X0
+	ADD X20, XZR, X1 
+	ADDI X21, XZR, #1		// i = 1; loop counter
+	SUBI X22, X20, #1		// length - 1; index of last element
+
+insertion_sort_loop:
+	SUBS X9, X21, X22		// break when i > length - 1
+	B.GT end_insertion_sort
+	ADD X0, XZR, X19		// call insert_sorted_pos
+	ADD X1, XZR, X21
+	ADD X2, XZR, X22
+	BL insert_sorted_pos
+	ADDI X21, X21, #1		// i++
+	B insertion_sort_loop
+end_insertion_sort:
+	LDUR LR, [SP, #0]
+	ADDI SP, SP, #8
+	BR LR
+
+
+// X0 addr; X1 pos; X2 final)
+insert_sorted_pos:
+	SUBI SP, SP, #48		// push caller regs
+	STUR LR, [SP, #0]
+	STUR X19, [SP, #8]
+	STUR X20, [SP, #16]
+	STUR X21, [SP, #24]
+	STUR X22, [SP, #32]
+	STUR X23, [SP, #40]
+	ADD X19, XZR, X0 	// addr 
+	ADD X20, XZR, X1 	// pos
+	ADD X21, XZR, X2	// final
+	LSL X9, X20, #3
+	ADD X9, X19, X9
+	LDUR X22, [X9, #0]	// X22: v = addr[pos]
+
+	ADD X0, X19, XZR	// call find_sorted_pos
+	ADD X1, X22, XZR
+	ADD X2, X20, XZR
+	BL find_sorted_pos
+	ADD X23, X0, XZR	// X23: return value p
+
+	ADD X0, X19, XZR	// call shift_right
+	ADD X1, X23, XZR
+	ADD X2, X20, XZR
+	BL shift_right
+
+	LSL X9, X23, #3 	// addr[p] = v
+	ADD X9, X19, X9
+	STUR X22, [X9, #0]
+
+	LDUR LR, [SP, #0] 	// restore stack
+	LDUR X19, [SP, #8]
+	LDUR X20, [SP, #16]
+	LDUR X21, [SP, #24]
+	LDUR X22, [SP, #32]
+	LDUR X23, [SP, #40]
+	ADDI SP, SP, #48
+	BR LR
+
+
+// X0 addr; X1 p; X2 pos
+shift_right:
+	ADD X9, X0, XZR		// addr
+	ADD X10, X1, XZR	// p
+	ADD X11, X2, XZR	// pos
+	SUBI X12, X11, #1 	// X12: i = pos - 1
+
+shr_loop:
+	SUBS X13, X12, X10 	
+	B.LT end_shift_right	// break after done shifting pos element
+	LSL X14, X12, #3
+	ADD X14, X9, X14	// X14: &addr[i]
+	LDUR X15, [X14, #0] // X15: addr[i]
+	STUR X15, [X14, #8]	// addr[i+1] = X15
+	SUBI X12, X12, #1 	// i--
+	B shr_loop
+
+end_shift_right:
+	BR LR
+
+
+// X0 addr; X1 v; X2 pos
+find_sorted_pos:
+	SUBI SP, SP, #24
+	STUR X19, [SP, #0]
+	STUR X20, [SP, #8]
+	STUR X21, [SP, #16]
+	ADD X19, X0, XZR 	// addr
+	ADD X20, X1, XZR 	// v
+	ADD X21, X2, XZR 	// pos
+	EOR X9, X9, X9		// X9: i = 0
+
+loop_fsp:
+	SUBS X10, X9, X21 	// break when i > final
+	B.GT end_fsp	
+	
+	LSL X11, X9, #3 	// X11: i * 8
+	ADD X12, X19, X11	// X12: &addr[i] 
+	LDUR X13, [X12, #0]	// X13: addr[i]
+	
+	SUBS X14, X13, X20 	// break when addr[i] >= v
+	B.GE end_fsp
+
+	ADDI X9, X9, #1 	// i++
+	B loop_fsp
+
+end_fsp:
+	ADD X0, X9, XZR 	// return i
+	LDUR X19, [SP, #0]
+	LDUR X20, [SP, #8]
+	LDUR X21, [SP, #16]
+	ADDI SP, SP, #24
+	BR LR
+
+
+// X0 addr; X1 length
+print_arr:
+	EOR X9, X9, X9
+print_loop:
+	SUBS X10, X9, X1
+	B.GE end_print
+	LSL X11, X9, #3
+	ADD X11, X11, X0
+
+	LDUR X12, [X11, #0]
+	PRNT X12
+	PRNL
+
+	ADDI X9, X9, #1
+	B print_loop
+end_print:
+	BR LR
+
+exit:
